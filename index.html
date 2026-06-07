@@ -30,12 +30,14 @@
       width: 100%; height: 100vh;
       z-index: 0;
     }
-    .frame-box video {
+    .frame-box img {
       position: absolute;
       top: 0; left: 0;
       width: 100%; height: 100%;
       object-fit: cover;
+      display: none;
     }
+    .frame-box img.active { display: block; }
 
     /* ===== 噪点纹理 ===== */
     .noise {
@@ -1594,11 +1596,7 @@
 </head>
 <body>
   <div class="noise"></div>
-  <div class="frame-box" id="frame-box">
-    <video id="bg-video" muted playsinline preload="auto">
-      <source src="video.mp4" type="video/mp4">
-    </video>
-  </div>
+  <div class="frame-box" id="frame-box"></div>
 
   <!-- Hero -->
   <div class="hero" id="hero">
@@ -1915,34 +1913,65 @@
   <script src="https://cdn.bootcdn.net/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
   <script src="https://cdn.bootcdn.net/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
   <script>
-    const bgVideo = document.getElementById('bg-video');
+    const TOTAL = 193;
+    const BUFFER = 8;           // 提前加载当前帧前后8帧
+    const frameBox = document.getElementById('frame-box');
     const hero = document.getElementById('hero');
     const progressBar = document.getElementById('progress-bar');
-    let videoReady = false;
+    const frameCache = {};      // idx -> img element
+    let currentFrame = 0;
     let ticking = false;
 
-    // 视频元数据加载完毕后启用滚动播放
-    bgVideo.addEventListener('loadedmetadata', () => {
-      videoReady = true;
-    });
+    function framePath(i) {
+      return 'frames-jpg/f' + String(i + 1).padStart(4, '0') + '.jpg';
+    }
 
-    function onScroll() {
-      if (!videoReady || ticking) return;
-      ticking = true;
-      requestAnimationFrame(() => {
-        const scrollH = document.documentElement.scrollHeight - window.innerHeight;
-        const progress = Math.max(0, Math.min(1, window.scrollY / scrollH));
-        // 用滚动进度控制视频播放位置
-        bgVideo.currentTime = progress * bgVideo.duration;
-        progressBar.style.width = (progress * 100) + '%';
-        hero.classList.toggle('faded', progress > 0.02);
-        ticking = false;
-      });
+    // 创建或获取帧img元素
+    function getFrame(idx) {
+      if (frameCache[idx]) return frameCache[idx];
+      const img = document.createElement('img');
+      img.src = framePath(idx);
+      frameBox.appendChild(img);
+      frameCache[idx] = img;
+      return img;
+    }
+
+    // 预加载指定范围的帧
+    function preloadRange(center) {
+      for (let i = Math.max(0, center - BUFFER); i <= Math.min(TOTAL - 1, center + BUFFER); i++) {
+        getFrame(i);
+      }
+    }
+
+    // 初始加载第0帧 + 缓冲
+    const firstImg = getFrame(0);
+    firstImg.classList.add('active');
+    preloadRange(0);
+
+    function showFrame(idx) {
+      if (idx === currentFrame) return;
+      if (frameCache[currentFrame]) frameCache[currentFrame].classList.remove('active');
+      currentFrame = idx;
+      const img = getFrame(idx);
+      img.classList.add('active');
+      preloadRange(idx);
     }
 
     function initAll() {
       // Frame playback scroll listener (no GSAP dependency)
-      window.addEventListener('scroll', onScroll, { passive: true });
+      window.addEventListener('scroll', () => {
+        if (ticking) return;
+        ticking = true;
+        requestAnimationFrame(() => {
+          const scrollH = document.documentElement.scrollHeight - window.innerHeight;
+          const progress = Math.max(0, Math.min(1, window.scrollY / scrollH));
+          const idx = Math.min(Math.floor(progress * TOTAL), TOTAL - 1);
+          showFrame(idx);
+          progressBar.style.width = (progress * 100) + '%';
+          hero.classList.toggle('faded', progress > 0.02);
+          ticking = false;
+        });
+      }, { passive: true });
 
       // GSAP animations - wrapped in try-catch so frame playback works even if GSAP fails
       try {
