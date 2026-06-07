@@ -1914,80 +1914,35 @@
   <script src="https://cdn.bootcdn.net/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
   <script>
     const TOTAL = 193;
-    const BUFFER = 8;           // 提前加载当前帧前后8帧
     const frameBox = document.getElementById('frame-box');
     const hero = document.getElementById('hero');
     const progressBar = document.getElementById('progress-bar');
-    const frameCache = {};      // idx -> img element
+    const frames = [];
     let currentFrame = 0;
-    let ticking = false;
 
-    function framePath(i) {
-      return 'frames-jpg/f' + String(i + 1).padStart(4, '0') + '.jpg';
-    }
-
-    // 创建或获取帧img元素
-    function getFrame(idx) {
-      if (frameCache[idx]) return frameCache[idx];
+    // 预加载全部帧
+    for (let i = 0; i < TOTAL; i++) {
       const img = document.createElement('img');
-      img.src = framePath(idx);
+      img.src = 'frames-jpg/f' + String(i + 1).padStart(4, '0') + '.jpg';
       frameBox.appendChild(img);
-      frameCache[idx] = img;
-      return img;
+      frames.push(img);
     }
-
-    // 预加载指定范围的帧
-    function preloadRange(center) {
-      for (let i = Math.max(0, center - BUFFER); i <= Math.min(TOTAL - 1, center + BUFFER); i++) {
-        getFrame(i);
-      }
-    }
-
-    // 初始加载第0帧 + 缓冲
-    const firstImg = getFrame(0);
-    firstImg.classList.add('active');
-    preloadRange(0);
-
-    let desiredFrame = 0;  // 追踪用户期望的帧
-
-    function showFrame(idx) {
-      if (idx === currentFrame) return;
-      desiredFrame = idx;
-      const img = getFrame(idx);
-      // 如果图片已缓存，直接切换
-      if (img.complete) {
-        if (frameCache[currentFrame]) frameCache[currentFrame].classList.remove('active');
-        currentFrame = idx;
-        img.classList.add('active');
-      } else {
-        // 图片未加载完，等加载完再切换（避免黑屏闪烁）
-        img.onload = () => {
-          // 只有当用户仍然期望这帧时才切换
-          if (desiredFrame === idx) {
-            if (frameCache[currentFrame]) frameCache[currentFrame].classList.remove('active');
-            currentFrame = idx;
-            img.classList.add('active');
-          }
-        };
-      }
-      preloadRange(idx);
-    }
+    frames[0].classList.add('active');
 
     function initAll() {
       // Frame playback scroll listener (no GSAP dependency)
       window.addEventListener('scroll', () => {
-        if (ticking) return;
-        ticking = true;
-        requestAnimationFrame(() => {
-          const scrollH = document.documentElement.scrollHeight - window.innerHeight;
-          const progress = Math.max(0, Math.min(1, window.scrollY / scrollH));
-          const idx = Math.min(Math.floor(progress * TOTAL), TOTAL - 1);
-          showFrame(idx);
-          progressBar.style.width = (progress * 100) + '%';
-          hero.classList.toggle('faded', progress > 0.02);
-          ticking = false;
-        });
-      }, { passive: true });
+        const scrollH = document.documentElement.scrollHeight - window.innerHeight;
+        const progress = window.scrollY / scrollH;
+        const idx = Math.min(Math.floor(progress * TOTAL), TOTAL - 1);
+        if (idx !== currentFrame) {
+          frames[currentFrame].classList.remove('active');
+          frames[idx].classList.add('active');
+          currentFrame = idx;
+        }
+        progressBar.style.width = (progress * 100) + '%';
+        hero.classList.toggle('faded', progress > 0.02);
+      });
 
       // GSAP animations - wrapped in try-catch so frame playback works even if GSAP fails
       try {
