@@ -1950,10 +1950,20 @@
 
     function showFrame(idx) {
       if (idx === currentFrame) return;
-      if (frameCache[currentFrame]) frameCache[currentFrame].classList.remove('active');
-      currentFrame = idx;
       const img = getFrame(idx);
-      img.classList.add('active');
+      // 如果图片已缓存，直接切换
+      if (img.complete) {
+        if (frameCache[currentFrame]) frameCache[currentFrame].classList.remove('active');
+        currentFrame = idx;
+        img.classList.add('active');
+      } else {
+        // 图片未加载完，等加载完再切换（避免黑屏闪烁）
+        img.onload = () => {
+          if (frameCache[currentFrame]) frameCache[currentFrame].classList.remove('active');
+          currentFrame = idx;
+          img.classList.add('active');
+        };
+      }
       preloadRange(idx);
     }
 
