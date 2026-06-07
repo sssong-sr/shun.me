@@ -1913,32 +1913,59 @@
   <script src="https://cdn.bootcdn.net/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
   <script src="https://cdn.bootcdn.net/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
   <script>
-    const TOTAL = 193;
+    const TOTAL = 49;
+    const BUFFER = 6;
     const frameBox = document.getElementById('frame-box');
     const hero = document.getElementById('hero');
     const progressBar = document.getElementById('progress-bar');
     const frames = [];
     let currentFrame = 0;
 
-    // 预加载全部帧
-    for (let i = 0; i < TOTAL; i++) {
-      const img = document.createElement('img');
-      img.src = 'frames-jpg/f' + String(i + 1).padStart(4, '0') + '.jpg';
-      frameBox.appendChild(img);
-      frames.push(img);
+    function framePath(i) {
+      return 'frames-jpg/f' + String(i + 1).padStart(3, '0') + '.jpg';
     }
-    frames[0].classList.add('active');
+
+    function getFrame(idx) {
+      if (frames[idx]) return frames[idx];
+      const img = document.createElement('img');
+      img.src = framePath(idx);
+      frameBox.appendChild(img);
+      frames[idx] = img;
+      return img;
+    }
+
+    function preloadRange(center) {
+      for (let i = Math.max(0, center - BUFFER); i <= Math.min(TOTAL - 1, center + BUFFER); i++) {
+        getFrame(i);
+      }
+    }
+
+    // 加载第0帧并显示
+    const first = getFrame(0);
+    first.classList.add('active');
+    preloadRange(0);
 
     function initAll() {
-      // Frame playback scroll listener (no GSAP dependency)
       window.addEventListener('scroll', () => {
         const scrollH = document.documentElement.scrollHeight - window.innerHeight;
         const progress = window.scrollY / scrollH;
         const idx = Math.min(Math.floor(progress * TOTAL), TOTAL - 1);
         if (idx !== currentFrame) {
-          frames[currentFrame].classList.remove('active');
-          frames[idx].classList.add('active');
-          currentFrame = idx;
+          const img = getFrame(idx);
+          if (img.complete) {
+            frames[currentFrame].classList.remove('active');
+            currentFrame = idx;
+            img.classList.add('active');
+          } else {
+            img.onload = () => {
+              if (currentFrame !== idx) {
+                frames[currentFrame].classList.remove('active');
+                currentFrame = idx;
+                img.classList.add('active');
+              }
+            };
+          }
+          preloadRange(idx);
         }
         progressBar.style.width = (progress * 100) + '%';
         hero.classList.toggle('faded', progress > 0.02);
